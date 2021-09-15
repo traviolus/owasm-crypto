@@ -66,14 +66,14 @@ pub fn hash(h: &[u8]) -> Vec<u8> {
 }
 
 pub fn x_recover(y: &Mpz) -> Mpz {
-    let xx = (y * y - Mpz::from(1)) * inverse(&((&*D) * (y * y) + Mpz::from(1)));
+    let xx = (y * y - Mpz::one()) * inverse(&((&*D) * (y * y) + Mpz::one()));
     let mut x = Mpz::from(
         xx.powm(&((&*PRIME + Mpz::from(3)) >> 3), &*PRIME),
     );
-    if modulus(&((&x * &x) - xx), &*PRIME) != Mpz::from(0) {
+    if modulus(&((&x * &x) - xx), &*PRIME) != Mpz::zero() {
         x = modulus(&Mpz::from(x * (&*II)), &*PRIME);
     }
-    if &x & Mpz::from(1) != Mpz::zero() {
+    if &x & Mpz::one() != Mpz::zero() {
         &*PRIME - x
     } else {
         x
@@ -91,7 +91,7 @@ pub fn is_on_curve(p: &(Mpz, Mpz)) -> bool {
 
 pub fn encode_point(p: &(Mpz, Mpz)) -> Vec<u8> {
     let mut q: Mpz =
-        (&p.1 & ((Mpz::from(1) << 255) - 1)) + (Mpz::from(&p.0 & Mpz::one()) << 255);
+        (&p.1 & ((Mpz::one() << 255) - 1)) + (Mpz::from(&p.0 & Mpz::one()) << 255);
     let mut q_bytes_little: Vec<u8> = vec![0; 32];
     for i in 0..32 {
         q_bytes_little[i] = u8::from_str_radix(Mpz::from(&q & Mpz::from(255)).to_str_radix(10).as_str(), 10).unwrap();
@@ -105,7 +105,7 @@ pub fn encode_point(p: &(Mpz, Mpz)) -> Vec<u8> {
 
 pub fn decode_point(s: &[u8]) -> Option<(Mpz, Mpz)> {
     let s_rev: Vec<u8> = Vec::from(s).into_iter().rev().collect();
-    let y = Mpz::from(s_rev.as_slice()) & ((Mpz::from(1) << 255) - 1);
+    let y = Mpz::from(s_rev.as_slice()) & ((Mpz::one() << 255) - 1);
     let mut x = x_recover(&y);
     if Mpz::from(&x & Mpz::one()) != Mpz::from(((s.last()? >> 7u8) & 1) as u32) {
         x = &*PRIME - x;
@@ -123,16 +123,16 @@ pub fn modulus(a: &Mpz, b: &Mpz) -> Mpz {
 }
 
 pub fn inverse(a: &Mpz) -> Mpz {
-    a.clone().invert(&*PRIME).unwrap_or(Mpz::from(1))
+    a.clone().invert(&*PRIME).unwrap_or(Mpz::one())
 }
 
 pub fn edwards_add(a: &(Mpz, Mpz), b: &(Mpz, Mpz)) -> (Mpz, Mpz) {
     let x1_y2 = &a.0 * &b.1;
     let x2_y1 = &a.1 * &b.0;
     let all = D.clone() * &x1_y2 * &x2_y1;
-    let x3 = (x1_y2 + x2_y1) * inverse(&(Mpz::from(1) + &all));
+    let x3 = (x1_y2 + x2_y1) * inverse(&(Mpz::one() + &all));
     let y3 =
-        ((&a.0 * &b.0) + (&a.1 * &b.1)) * inverse(&(Mpz::from(1) - &all));
+        ((&a.0 * &b.0) + (&a.1 * &b.1)) * inverse(&(Mpz::one() - &all));
     (modulus(&x3, &*PRIME), modulus(&y3, &*PRIME))
 }
 
@@ -184,7 +184,7 @@ pub fn ecvrf_hash_to_curve_elligator2_25519(y: &[u8], alpha: &[u8]) -> Option<Ve
     let mut tv1 = &u * &u;
     tv1 = modulus(&(Mpz::from(2) * tv1), &*PRIME);
     if tv1 == Mpz::from(&*PRIME - 1) {
-        tv1 = Mpz::from(0);
+        tv1 = Mpz::zero();
     }
 
     let mut x1 = inverse(&modulus(&(tv1.clone() + 1), &*PRIME));
@@ -282,7 +282,6 @@ pub fn ecvrf_verify(y: &[u8], pi: &[u8], alpha: &[u8]) -> bool {
 mod tests {
     use super::*;
     use hex::encode;
-    use std::time::Instant;
 
     #[test]
     fn hash_test() {
@@ -296,7 +295,7 @@ mod tests {
 
     #[test]
     fn is_on_curve_test() {
-        assert_eq!(is_on_curve(&(Mpz::from(0), Mpz::from(1))), true);
+        assert_eq!(is_on_curve(&(Mpz::zero(), Mpz::one())), true);
         assert_eq!(
             is_on_curve(&(
                 "2467584584982761739087903239975580076073426676744013905948960903141708961180"
@@ -359,7 +358,7 @@ mod tests {
     #[test]
     fn encode_point_test() {
         assert_eq!(
-            encode_point(&(Mpz::from(0), Mpz::from(1))),
+            encode_point(&(Mpz::zero(), Mpz::one())),
             decode("0100000000000000000000000000000000000000000000000000000000000000").unwrap()
         );
         assert_eq!(
@@ -485,7 +484,7 @@ mod tests {
     fn ecvrf_hash_points_test() {
         assert_eq!(
             ecvrf_hash_points(
-                &(Mpz::from(1), Mpz::from(2)),
+                &(Mpz::one(), Mpz::from(2)),
                 &(Mpz::from(3), Mpz::from(4)),
                 &(Mpz::from(5), Mpz::from(6)),
                 &(Mpz::from(7), Mpz::from(8)),
@@ -682,7 +681,7 @@ mod tests {
     fn edwards_add_test() {
         assert_eq!(
             edwards_add(
-                &(Mpz::from(1), Mpz::from(2)),
+                &(Mpz::one(), Mpz::from(2)),
                 &(Mpz::from(3), Mpz::from(4)),
             ),
             (
